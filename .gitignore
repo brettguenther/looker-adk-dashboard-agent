@@ -1,0 +1,39 @@
+# Local Environment & Secrets
+.env
+.env.*
+!.env.example
+*.token
+*.key
+
+# Deployment & Build Metadata
+deployment_metadata.json
+deployment/*.whl
+dist/
+build/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Resources & Archives
+.resources/
+*.tar.gz
+*.whl
+
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual Environments
+.venv/
+env/
+venv/
+
+# IDE & OS Files
+.DS_Store
+.idea/
+.vscode/
+*.log
