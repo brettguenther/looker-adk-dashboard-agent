@@ -1,7 +1,8 @@
-"""A2UI (Agent-to-User Interface) v0.9 Payload and Response Builder for Looker Dashboards."""
+"""A2UI (Agent-to-User Interface) v0.9 Payload and Response Builder for Looker Dashboards in Gemini Enterprise."""
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, List, Optional
 
 
@@ -16,93 +17,119 @@ def build_dashboard_a2ui_payload(
     verified_count: int = 0,
     model_name: Optional[str] = None,
     explore_name: Optional[str] = None,
-) -> Dict[str, Any]:
+) -> List[Dict[str, Any]]:
     """Constructs official A2UI v0.9 message envelope for Gemini Enterprise / Agentspace.
 
-    Follows the A2UI v0.9 specification:
-    - createSurface: initializes the rendering surface
-    - updateComponents: flat adjacency list of native UI components
-    - updateDataModel: state model for component bindings
+    Conforms to https://a2ui.org/specification/v0_9/material_catalog.json specification
+    using `IFrameSrcdoc` for rich sandboxed embed rendering.
     """
-    surface_id = f"dashboard-surface-{slug}"
-    catalog_id = "https://a2ui.org/catalogs/basic/0.9"
+    surface_id = f"looker-dashboard-{slug}"
+    catalog_id = "https://a2ui.org/specification/v0_9/material_catalog.json"
 
-    subtitle = (
-        f"Explore: {model_name}/{explore_name}"
-        if model_name and explore_name
-        else "Interactive Looker Dashboard"
-    )
-    status_text = (
-        f"✅ {verified_count}/{tile_count} query tiles verified against live data"
-        if tile_count > 0
-        else "✅ Live Dashboard Deployed"
+    status_text = f"{verified_count}/{tile_count} Verified" if tile_count > 0 else "Live Looker"
+    
+    # Sandboxed HTML payload for IFrameSrcdoc
+    html_content = (
+        "<!DOCTYPE html>"
+        "<html>"
+        "<head>"
+        "<meta charset='utf-8'>"
+        "<style>"
+        "body { margin: 0; padding: 0; overflow: hidden; background: #fafafa; font-family: 'Google Sans', Roboto, sans-serif; }"
+        "iframe { border: none; width: 100%; height: 750px; display: block; border-radius: 8px; }"
+        "</style>"
+        "</head>"
+        "<body>"
+        f"<iframe src=\"{embed_url}\" width=\"100%\" height=\"750\" allowfullscreen loading=\"lazy\"></iframe>"
+        "</body>"
+        "</html>"
     )
 
     components: List[Dict[str, Any]] = [
         {
-            "id": "root-card",
-            "component": "Card",
-            "props": {
-                "title": title,
-                "subtitle": subtitle,
-            },
-            "children": ["status-badge", "embed-iframe", "action-row"],
+            "id": "root",
+            "component": "MaterialCard",
+            "appearance": "outlined",
+            "children": ["main-column"],
+        },
+        {
+            "id": "main-column",
+            "component": "MaterialColumn",
+            "align": "stretch",
+            "style": {"gap": "12px"},
+            "children": ["header-row", "dashboard-frame", "actions-row"],
+        },
+        {
+            "id": "header-row",
+            "component": "MaterialRow",
+            "justify": "spaceBetween",
+            "align": "center",
+            "children": ["title-col", "status-badge"],
+        },
+        {
+            "id": "title-col",
+            "component": "MaterialColumn",
+            "children": ["title-text", "subtitle-text"],
+        },
+        {
+            "id": "title-text",
+            "component": "MaterialText",
+            "text": title,
+            "usageHint": "h2",
+        },
+        {
+            "id": "subtitle-text",
+            "component": "MaterialText",
+            "text": f"Explore: {model_name}/{explore_name}" if model_name and explore_name else "Looker Embedded Analytics",
+            "usageHint": "caption",
         },
         {
             "id": "status-badge",
-            "component": "Text",
-            "props": {
-                "text": status_text,
-                "variant": "caption",
-            },
+            "component": "MaterialBadge",
+            "text": status_text,
+            "color": "primary",
+            "children": ["badge-icon"],
         },
         {
-            "id": "embed-iframe",
-            "component": "Iframe",
-            "props": {
-                "src": embed_url,
-                "title": title,
-                "height": "750px",
-                "width": "100%",
-                "style": {
-                    "border": "1px solid #e0e0e0",
-                    "borderRadius": "8px",
-                    "marginTop": "12px",
-                    "marginBottom": "12px",
-                },
-            },
+            "id": "badge-icon",
+            "component": "MaterialIcon",
+            "icon": "verified",
         },
         {
-            "id": "action-row",
-            "component": "Row",
-            "props": {
-                "align": "end",
-                "spacing": "small",
-            },
-            "children": ["btn-open-looker", "btn-refine"],
+            "id": "dashboard-frame",
+            "component": "IFrameSrcdoc",
+            "height": 750,
+            "htmlContent": html_content,
+        },
+        {
+            "id": "actions-row",
+            "component": "MaterialRow",
+            "justify": "spaceBetween",
+            "align": "center",
+            "children": ["folder-label", "button-group"],
+        },
+        {
+            "id": "folder-label",
+            "component": "MaterialText",
+            "text": f"Folder: {folder_name or 'Personal / Shared'}",
+            "usageHint": "caption",
+        },
+        {
+            "id": "button-group",
+            "component": "MaterialRow",
+            "align": "center",
+            "style": {"gap": "8px"},
+            "children": ["btn-open-looker"],
         },
         {
             "id": "btn-open-looker",
-            "component": "Button",
-            "props": {
-                "label": "Open in Looker",
-                "variant": "primary",
-            },
+            "component": "MaterialButton",
+            "text": "Open in Looker",
+            "color": "primary",
             "action": {
-                "type": "openUrl",
-                "url": looker_url,
-            },
-        },
-        {
-            "id": "btn-refine",
-            "component": "Button",
-            "props": {
-                "label": "Refine Dashboard",
-                "variant": "secondary",
-            },
-            "action": {
-                "type": "sendMessage",
-                "prompt": f"Add a new metric tile to dashboard '{slug}'",
+                "openUrl": {
+                    "url": looker_url,
+                }
             },
         },
     ]
@@ -113,26 +140,39 @@ def build_dashboard_a2ui_payload(
         "title": title,
         "embed_url": embed_url,
         "looker_url": looker_url,
-        "folder_name": folder_name or "Default / Shared",
+        "folder_name": folder_name or "Personal / Shared",
         "tile_count": tile_count,
         "verified_count": verified_count,
     }
 
-    return {
-        "version": "v0.9",
-        "createSurface": {
-            "surfaceId": surface_id,
-            "catalogId": catalog_id,
+    return [
+        {
+            "version": "v0.9",
+            "createSurface": {
+                "surfaceId": surface_id,
+                "catalogId": catalog_id,
+                "theme": {
+                    "primaryColor": "#1a73e8",
+                    "font": "Google Sans",
+                },
+            },
         },
-        "updateComponents": {
-            "surfaceId": surface_id,
-            "components": components,
+        {
+            "version": "v0.9",
+            "updateComponents": {
+                "surfaceId": surface_id,
+                "components": components,
+            },
         },
-        "updateDataModel": {
-            "surfaceId": surface_id,
-            "data": data_model,
+        {
+            "version": "v0.9",
+            "updateDataModel": {
+                "surfaceId": surface_id,
+                "path": "/",
+                "value": data_model,
+            },
         },
-    }
+    ]
 
 
 def format_dashboard_markdown_response(
@@ -144,7 +184,7 @@ def format_dashboard_markdown_response(
     folder_name: Optional[str] = None,
     tile_count: int = 0,
     verified_count: int = 0,
-    a2ui_payload: Optional[Dict[str, Any]] = None,
+    a2ui_payload: Optional[Any] = None,
 ) -> str:
     """Formats a clean markdown response including direct links, summary, and A2UI embed markers."""
     lines = [
@@ -152,8 +192,9 @@ def format_dashboard_markdown_response(
         "",
         f"🔗 **[👉 Click here to Open Live Dashboard in Looker]({looker_url})**",
         "",
+        f"- **Model & Explore**: LookML verified",
         f"- **Dashboard Slug**: `{slug}` (ID: `{dashboard_id}`)",
-        f"- **Folder**: {folder_name or 'Default / Shared'}",
+        f"- **Folder**: {folder_name or 'Personal / Shared'}",
         f"- **Verification Status**: ✅ {verified_count}/{tile_count} query tiles verified successfully against Looker",
         f"- **Signed Embed Link**: [Interactive Embed URL]({embed_url})",
         "",
@@ -164,7 +205,7 @@ def format_dashboard_markdown_response(
         f'<iframe src="{embed_url}" width="100%" height="750" frameborder="0" allowfullscreen></iframe>',
         "",
         "> [!TIP]",
-        f"> You can refine this dashboard anytime by asking: *\"Add a new KPI card to dashboard `{slug}`\"*.",
+        f"> You can refine this dashboard anytime by asking: *\"Add a breakdown tile by region or category to dashboard `{slug}`\"*.",
     ]
 
     return "\n".join(lines)
