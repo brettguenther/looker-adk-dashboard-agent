@@ -30,6 +30,12 @@ patch-adk:
 test-local:
 	python3 scripts/local_runner.py
 
+web:
+	adk web --port 8000 .
+
+playground:
+	agents-cli playground
+
 preview:
 	python3 scripts/preview_server.py --dashboard-id $(or $(DASHBOARD_ID),1)
 
