@@ -74,7 +74,8 @@ class LookerManagedMCPClient:
             err_msg = ""
             for item in res.get("content", []):
                 err_msg += item.get("text", "")
-            raise RuntimeError(f"Looker MCP tool '{name}' error: {err_msg}")
+            logger.warning("Looker MCP tool '%s' returned error: %s", name, err_msg)
+            return [{"error": err_msg or f"Tool {name} returned error status"}]
 
         contents = res.get("content", [])
         parsed_results: List[Any] = []

@@ -26,8 +26,14 @@ def list_available_models(tool_context: Optional[ToolContext] = None) -> List[Di
     Returns:
         List of models with name, label, and explore details.
     """
-    models = mcp_client.get_models(ctx=tool_context)
-    return [{"name": m.get("name"), "label": m.get("label")} for m in models]
+    try:
+        models = mcp_client.get_models(ctx=tool_context)
+        if isinstance(models, list) and len(models) > 0 and isinstance(models[0], dict) and "error" in models[0]:
+            return [{"error": models[0]["error"]}]
+        return [{"name": m.get("name"), "label": m.get("label")} for m in models if isinstance(m, dict) and "error" not in m]
+    except Exception as e:
+        logger.warning("Failed to list models: %s", e)
+        return [{"error": f"Failed to list models: {e}"}]
 
 
 def list_explores_in_model(
@@ -37,13 +43,19 @@ def list_explores_in_model(
     """List all explores available within a specific LookML model.
 
     Args:
-        model_name: The name of the LookML model (e.g. 'thelook').
+        model_name: The name of the LookML model (e.g. 'look_ecomm').
 
     Returns:
         List of explores with name and label.
     """
-    explores = mcp_client.get_explores(model_name, ctx=tool_context)
-    return [{"name": e.get("name"), "label": e.get("label")} for e in explores]
+    try:
+        explores = mcp_client.get_explores(model_name, ctx=tool_context)
+        if isinstance(explores, list) and len(explores) > 0 and isinstance(explores[0], dict) and "error" in explores[0]:
+            return [{"error": f"Error retrieving explores for model '{model_name}': {explores[0]['error']}. Please call list_available_models to check valid model names."}]
+        return [{"name": e.get("name"), "label": e.get("label")} for e in explores if isinstance(e, dict) and "error" not in e]
+    except Exception as e:
+        logger.warning("Failed to list explores for model '%s': %s", model_name, e)
+        return [{"error": f"Failed to list explores for model '{model_name}': {e}. Please use list_available_models to verify model names."}]
 
 
 def inspect_explore_schema(
@@ -60,15 +72,32 @@ def inspect_explore_schema(
     Returns:
         Dictionary containing verified dimensions, measures, filters, and parameters.
     """
-    meta = mcp_client.get_explore_metadata(model_name, explore_name, ctx=tool_context)
-    return {
-        "model": model_name,
-        "explore": explore_name,
-        "measures": [{"name": m.get("name"), "type": m.get("type"), "label": m.get("label")} for m in meta.get("measures", [])],
-        "dimensions": [{"name": d.get("name"), "type": d.get("type"), "label": d.get("label")} for d in meta.get("dimensions", [])[:35]],
-        "filters": [{"name": f.get("name"), "label": f.get("label")} for f in meta.get("filters", [])],
-        "parameters": [{"name": p.get("name"), "label": p.get("label")} for p in meta.get("parameters", [])],
-    }
+    try:
+        meta = mcp_client.get_explore_metadata(model_name, explore_name, ctx=tool_context)
+        # Check if error returned from Looker MCP
+        dims = meta.get("dimensions", [])
+        if isinstance(dims, list) and len(dims) > 0 and isinstance(dims[0], dict) and "error" in dims[0]:
+            return {
+                "error": (
+                    f"Looker returned error for model '{model_name}', explore '{explore_name}': {dims[0]['error']}. "
+                    f"Please call list_available_models and list_explores_in_model to verify that model '{model_name}' "
+                    f"contains explore '{explore_name}'."
+                )
+            }
+
+        return {
+            "model": model_name,
+            "explore": explore_name,
+            "measures": [{"name": m.get("name"), "type": m.get("type"), "label": m.get("label")} for m in meta.get("measures", []) if isinstance(m, dict) and "error" not in m],
+            "dimensions": [{"name": d.get("name"), "type": d.get("type"), "label": d.get("label")} for d in meta.get("dimensions", []) if isinstance(d, dict) and "error" not in d][:40],
+            "filters": [{"name": f.get("name"), "label": f.get("label")} for f in meta.get("filters", []) if isinstance(f, dict) and "error" not in f],
+            "parameters": [{"name": p.get("name"), "label": p.get("label")} for p in meta.get("parameters", []) if isinstance(p, dict) and "error" not in p],
+        }
+    except Exception as e:
+        logger.warning("Failed to inspect schema for %s/%s: %s", model_name, explore_name, e)
+        return {
+            "error": f"Failed to inspect schema for {model_name}/{explore_name}: {e}. Please use list_available_models and list_explores_in_model to find valid explores."
+        }
 
 
 def query_looker_data(
