@@ -5,8 +5,11 @@ from __future__ import annotations
 import logging
 import os
 
-# Pin Vertex AI GenAI model location to global for Gemini 3.6 / 2.5
+# Configure Vertex AI backend and global model location
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "true"
 os.environ["GOOGLE_CLOUD_LOCATION"] = os.getenv("VERTEXAI_LOCATION", "global")
+if os.getenv("GOOGLE_CLOUD_PROJECT") is None:
+    os.environ["GOOGLE_CLOUD_PROJECT"] = "stellar-cumulus-449523-b8"
 
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.apps import App

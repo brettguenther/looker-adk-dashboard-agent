@@ -272,6 +272,28 @@ def generate_dashboard_embed_ui(
         a2ui_payload=a2ui_payload,
     )
 
+    # Attach official ADK UI Widget to tool context if running in an interactive UI host (Gemini Enterprise)
+    if tool_context and hasattr(tool_context, "render_ui_widget") and getattr(tool_context, "function_call_id", None):
+        try:
+            from google.adk.events.ui_widget import UiWidget
+            tool_context.render_ui_widget(
+                UiWidget(
+                    id=tool_context.function_call_id,
+                    provider="mcp",
+                    payload={
+                        "resource_uri": embed_url,
+                        "url": embed_url,
+                        "title": title,
+                        "dashboard_id": str(dashboard_id_or_slug),
+                        "slug": str(dashboard_id_or_slug),
+                        "looker_url": looker_url,
+                        "a2ui_payload": a2ui_payload,
+                    },
+                )
+            )
+        except Exception as e:
+            logger.debug("UiWidget attachment skipped or not supported: %s", e)
+
     return {
         "embed_url": embed_url,
         "looker_url": looker_url,
