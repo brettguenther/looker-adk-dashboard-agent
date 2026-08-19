@@ -238,12 +238,13 @@ def generate_dashboard_embed_ui(
     Returns:
         Dictionary with embed_url, looker_url, a2ui_component payload, and markdown response.
     """
-    embed_info = mcp_client.generate_embed_url(
-        content_type="dashboards",
-        content_id=str(dashboard_id_or_slug),
+    # Generate signed embed URL using Looker API create_embed_url_as_me to ensure correct public domain
+    embed_url = dashboard_importer.create_embed_url(
+        dashboard_id_or_slug=str(dashboard_id_or_slug),
+        session_length=3600,
+        force_logout_login=False,
         ctx=tool_context,
     )
-    embed_url = embed_info.get("url") or f"{dashboard_importer.instance_base_url}/embed/dashboards/{dashboard_id_or_slug}"
     looker_url = f"{dashboard_importer.instance_base_url}/dashboards/{dashboard_id_or_slug}"
 
     a2ui_payload = build_dashboard_a2ui_payload(

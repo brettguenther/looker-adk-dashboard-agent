@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 import requests
 import yaml
 
-from app.auth import get_auth_headers
+from app.auth import get_auth_headers, resolve_looker_base_url
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -118,5 +118,52 @@ class LookerDashboardImporter:
             raw_response=data,
         )
 
+    def create_embed_url(
+        self,
+        dashboard_id_or_slug: str,
+        session_length: int = 3600,
+        force_logout_login: bool = False,
+        ctx: Optional[Any] = None,
+    ) -> str:
+        """Generate a user-signed embed URL via Looker API 4.0 create_embed_url_as_me (/embed/token_url/me).
+
+        Guarantees the exact Looker public domain is used and eliminates Looker MCP domain discrepancies.
+        """
+        instance_base = self.instance_base_url or resolve_looker_base_url()
+        target_url = f"{instance_base}/embed/dashboards/{dashboard_id_or_slug}"
+        api_base = self.api_base_url or f"{instance_base}/api/4.0"
+        endpoint = f"{api_base}/embed/token_url/me"
+        headers = get_auth_headers(ctx)
+
+        try:
+            logger.info("Calling Looker create_embed_url_as_me API at %s for target: %s", endpoint, target_url)
+            resp = requests.post(
+                endpoint,
+                headers=headers,
+                json={
+                    "target_url": target_url,
+                    "session_length": session_length,
+                    "force_logout_login": force_logout_login,
+                },
+                timeout=15,
+                verify=settings.lookersdk_verify_ssl,
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, dict) and data.get("url"):
+                    logger.info("Successfully generated signed embed URL via create_embed_url_as_me.")
+                    return str(data["url"])
+            else:
+                logger.warning(
+                    "create_embed_url_as_me API returned status %d: %s. Falling back to target URL.",
+                    resp.status_code,
+                    resp.text,
+                )
+        except Exception as e:
+            logger.warning("Failed to generate embed URL via API (%s). Falling back to direct URL.", e)
+
+        return target_url
+
 
 dashboard_importer = LookerDashboardImporter()
+
