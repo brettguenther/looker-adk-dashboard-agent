@@ -30,5 +30,8 @@ patch-adk:
 test-local:
 	python3 scripts/local_runner.py
 
+preview:
+	python3 scripts/preview_server.py --dashboard-id $(or $(DASHBOARD_ID),1)
+
 clean:
 	rm -rf dist build *.egg-info app/*.egg-info
